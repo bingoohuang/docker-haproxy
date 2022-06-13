@@ -21,7 +21,7 @@ import (
 // Dial 建立一个到log守护进程的连接，这个守护进程的地址由参数raddr指定，连接方式由参数network定义(可以为tcp, udp，或空)，如果network是空，Dial会连接到本地的syslog服务器。
 
 func main() {
-	pNetwork := flag.String("network", "udp", "network, tcp/udp/(empty)")
+	pNetwork := flag.String("network", "", "network, tcp/udp/(empty)")
 	pAddr := flag.String("addr", "", "remote address, if network is tcp or upd, the empty address will default to :514")
 	pPri := flag.String("pri", "local3.info", "syslog facility and severity (priority)")
 	pTag := flag.String("tag", os.Args[0], "syslog tag, default os.Args[0]")

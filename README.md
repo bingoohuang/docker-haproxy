@@ -290,3 +290,58 @@ vi /etc/sysconfig/rsyslog
 接受到的信息都可根据syslog.conf中定义的@主机转发过去
 
 配置完毕后重启 rsyslogd 和 haproxy 即可.
+
+## haproxy-dconv logging
+
+[doc](https://cbonte.github.io/haproxy-dconv/1.8/management.html#8)
+
+```log
+For logging, HAProxy always relies on a syslog server since it does not perform
+any file-system access. The standard way of using it is to send logs over UDP
+to the log server (by default on port 514). Very commonly this is configured to
+127.0.0.1 where the local syslog daemon is running, but it's also used over the
+network to log to a central server. The central server provides additional
+benefits especially in active-active scenarios where it is desirable to keep
+the logs merged in arrival order. HAProxy may also make use of a UNIX socket to
+send its logs to the local syslog daemon, but it is not recommended at all,
+because if the syslog server is restarted while haproxy runs, the socket will
+be replaced and new logs will be lost. Since HAProxy will be isolated inside a
+chroot jail, it will not have the ability to reconnect to the new socket. It
+has also been observed in field that the log buffers in use on UNIX sockets are
+very small and lead to lost messages even at very light loads. But this can be
+fine for testing however.
+
+It is recommended to add the following directive to the "global" section to
+make HAProxy log to the local daemon using facility "local0" :
+
+      log 127.0.0.1:514 local0
+
+and then to add the following one to each "defaults" section or to each frontend
+and backend section :
+
+      log global
+
+This way, all logs will be centralized through the global definition of where
+the log server is.
+
+Some syslog daemons do not listen to UDP traffic by default, so depending on
+the daemon being used, the syntax to enable this will vary :
+
+  - on sysklogd, you need to pass argument "-r" on the daemon's command line
+    so that it listens to a UDP socket for "remote" logs ; note that there is
+    no way to limit it to address 127.0.0.1 so it will also receive logs from
+    remote systems ;
+
+  - on rsyslogd, the following lines must be added to the configuration file :
+
+      $ModLoad imudp
+      $UDPServerAddress *
+      $UDPServerRun 514
+
+  - on syslog-ng, a new source can be created the following way, it then needs
+    to be added as a valid source in one of the "log" directives :
+
+      source s_udp {
+        udp(ip(127.0.0.1) port(514));
+      };
+```
