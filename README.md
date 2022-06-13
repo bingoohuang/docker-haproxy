@@ -2,9 +2,8 @@
 
 ## Usage
 
-```sh
-$ docker-compose up
-```
+- start: `make up`
+- clean: `make clean`
 
 ## Test
 

@@ -1,3 +1,3 @@
 FROM nginx:1.21.6-alpine
 
-COPY ./index.html  /usr/share/nginx/html/index.html
+RUN echo "From nginx111" > /usr/share/nginx/html/index.html
