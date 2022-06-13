@@ -3,8 +3,16 @@ version: '2'
 services:
   haproxy:
     build: ./haproxy/.
+    stdin_open: true # docker run -i
+    tty: true        # docker run -t
+    environment:
+      RUNUSER_UID: 1001
+      RUNUSER_HOME: /etc/haproxy
     ports:
-     - '8080:8080'
+     - '6000:5000'
+     - '6001:5001'
+    #  - '5514:514/tcp'
+    #  - '5514:514/udp'
 
   nginx1:
     build: ./nginx1/.

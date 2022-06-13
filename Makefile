@@ -3,7 +3,9 @@ up:
 	docker-compose up --build
 clean:
 	docker-compose rm -fsv
-test:
-	for i in $$(seq 1 20); do curl http://127.0.0.1:8080; done
-test2:
-	gurl :8080 -n10
+t1:
+	curl http://127.0.0.1:6000
+t2:
+	for i in $$(seq 1 20); do curl http://127.0.0.1:6000; done
+t3:
+	gurl :6000 -n10
