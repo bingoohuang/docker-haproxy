@@ -1,6 +1,8 @@
 # docker-haproxy-nginx
 
-![HAProxy Logging](assets/2022-06-14-08-59-14.png)
+this repo demostrates how to config haproxy and rsyslog to enable the haproxy's logging.
+
+![HAProxy Logging](_assets/2022-06-14-08-59-14.png)
 图片来自 [dlt-labs-publication](https://medium.com/dlt-labs-publication/haproxy-logging-cd4c0a9f1f03)
 
 ## Usage
