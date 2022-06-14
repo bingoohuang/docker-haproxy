@@ -1,9 +1,13 @@
 # docker-haproxy-nginx
 
+![HAProxy Logging](assets/2022-06-14-08-59-14.png)
+图片来自 [dlt-labs-publication](https://medium.com/dlt-labs-publication/haproxy-logging-cd4c0a9f1f03)
+
 ## Usage
 
 - start: `make up`, clean: `make clean`
 - test: `make t1`
+- login haproxy docker: `docker-compose exec -it haproxy sh`
 
 ## logs
 
@@ -43,8 +47,12 @@ Branch  | Release date | End of life                   | Latest version | Change
 
 ## Resouces
 
+1. [Introduction to HAProxy Logging](https://www.haproxy.com/blog/introduction-to-haproxy-logging/)
 1. [Docker HAproxy 配置 & rsyslog 日志处理](https://blog.csdn.net/zhengxia19/article/details/115210843)
-2. [How To Configure HAProxy Logging with Rsyslog on CentOS 8](https://www.digitalocean.com/community/tutorials/how-to-configure-haproxy-logging-with-rsyslog-on-centos-8-quickstart)
+1. [How To Configure HAProxy Logging with Rsyslog on CentOS 8](https://www.digitalocean.com/community/tutorials/how-to-configure-haproxy-logging-with-rsyslog-on-centos-8-quickstart)
+1. [All you need to know about HAProxy log format](https://www.sumologic.com/blog/haproxy-log-format/)
+1. [HAProxy Docker Container Logs](https://ops.tips/gists/haproxy-docker-container-logs/)
+1. [rsyslog详解实战和避坑](https://cloud.tencent.com/developer/article/1682996)
 
 ## syslog协议的Facility, Severity数字代号和PRI计算
 
@@ -82,17 +90,17 @@ Code | Keyword  | Description                                | 解释
 22   | local6   | local use 6 (local6)                       | 系统预留
 23   | local7   | local use 7 (local7)                       | 系统预留
 
-Severity 优先级:
+Severity 优先级 level: local0～local7 16～23保留为本地使用
 
 Code | Keyword | Description                                                     | 解释
------|---------|-----------------------------------------------------------------|----------
-0    | emerg   | System is unusable                                              | 最高的紧急程度状态
-1    | alert   | Should be corrected immediately                                 | 紧急状态
-2    | crit    | Critical conditions                                             | 重要信息
-3    | err     | Error conditions                                                | 警告
-4    | warning | May indicate that an error will occur if action is not taken.   | 临界状态
-5    | notice  | Events that are unusual, but not error conditions.              | 出现不寻常的事情
-6    | info    | Normal operational messages that require no action.             | 一般性消息
+-----|---------|-----------------------------------------------------------------|------------------
+0    | emerg   | System is unusable                                              | 最高的紧急程度状态 系统不可用
+1    | alert   | Should be corrected immediately                                 | 紧急状态 必须马上采取行动的事件
+2    | crit    | Critical conditions                                             | 重要信息 关键的事件
+3    | err     | Error conditions                                                | 警告 错误事件
+4    | warning | May indicate that an error will occur if action is not taken.   | 临界状态 警告事件
+5    | notice  | Events that are unusual, but not error conditions.              | 出现不寻常的事情 普通但重要的事件
+6    | info    | Normal operational messages that require no action.             | 一般性消息  有用的信息
 7    | debug   | Information useful to developers for debugging the application. | 调试级信息
 
 针对PRI的计算公式：`PRI = FacilityCode*8 + SeverityCode`
@@ -132,7 +140,6 @@ rsyslog 在Linux上自带，兼容syslog语法，在syslog基础上增加了更�
 - 修改配置文件后，重启服务： `sudo /etc/init.d/rsyslog restart`
 - check if rsyslog started or not: `logger "hello"`
 - 完全禁用SELinux或执行以下命令并重新启动rsyslog：`semanage port -a -t syslogd_port_t -p tcp 10544`
-
 
 ## rsyslog日志配置
 
@@ -345,3 +352,136 @@ the daemon being used, the syntax to enable this will vary :
         udp(ip(127.0.0.1) port(514));
       };
 ```
+
+## HAProxy: Give me some logs on CentOS 6.5
+
+[haproxy logs](https://www.percona.com/blog/2014/10/03/haproxy-give-me-some-logs-on-centos-6-5/)
+
+If you look at the top of `/etc/haproxy/haproxy.cfg`, you will see something like:
+
+```cfg
+global
+log         127.0.0.1 local2
+[...]
+```
+
+This means that HAProxy will send its messages to rsyslog on 127.0.0.1. But by default, rsyslog doesn’t listen on any address, hence the issue.
+
+Let’s edit `/etc/rsyslog.conf` and uncomment these lines:
+
+```conf
+# Loads the imudp into rsyslog address space
+# and activates it.
+# IMUDP provides the ability to receive syslog
+# messages via UDP.
+$ModLoad imudp
+
+# Address to listen for syslog messages to be
+# received.
+$UDPServerAddress 0.0.0.0
+
+# Port to listen for the messages
+$UDPServerRun 514
+
+# Take the messages of any priority sent to the
+# local0 facility (which we reference in the haproxy
+# configuration) and send to the haproxy.log
+# file.
+local0.* -/var/log/haproxy.log
+
+# Discard the rest
+& ~
+```
+
+This will make rsyslog listen on UDP port 514 for all IP addresses. Optionally you can limit to 127.0.0.1 by adding:
+
+`$UDPServerAddress 127.0.0.1`
+
+Now create a `/etc/rsyslog.d/haproxy.conf` file containing:
+
+`local2.*   /log/haproxy.log`
+
+You can of course be more specific and create separate log files according to the level of messages:
+
+```conf
+local2.=info    /log/haproxy-info.log
+local2.notice   /log/haproxy-allbutinfo.log
+```
+
+Then restart rsyslog and see that log files are created:
+
+```sh
+# service rsyslog restart
+Shutting down system logger:                               [  OK  ]
+Starting system logger:                                    [  OK  ]
+
+# ls -l /var/log | grep haproxy
+-rw-------. 1 root   root      131  3 oct.  10:43 haproxy-allbutinfo.log
+-rw-------. 1 root   root      106  3 oct.  10:42 haproxy-info.log
+Now you can start your debugging session!
+```
+
+## rule
+
+一条rule的语法格式如： `<Facility>.<Severity> <Target>`，例如：
+
+```sh
+# Log cron stuff
+cron.* /var/log/cron
+
+# 记录info到本地messages文件，.none 结尾表示排除掉这些文件类型。
+*.info;mail.none;authpriv.none;cron.none /var/log/messages
+
+# 所有为local5的任意级别日志发送到远端514
+local5.* @@192.168.56.10:514
+```
+
+### Target
+
+- 文件： /var/log/messages
+- 用户： root，*（表示所有用户）， 会发到/var/spool/mail/收件箱里
+- 日志服务器： @192.168.56.10 或者 @@192.168.56.10 ( 一个 @ 表示 UDP, 两个 @@ 表示 TCP 协议)
+- 管道： | COMMAND
+
+### 遇到的坑 UDP or TCP ?
+
+一般来说选择TCP都是OK的，除非忍受部分丢失，在意影响性能，可以改用UDP。
+但是注意：如果你的消息每行大小超过了4k，只能用TCP。这是因为UDP栈大小限制的。
+
+引用官方有关 [MaxMessageSize](http://www.rsyslog.com/doc/v5-stable/configuration/global/index.html) 的描述：
+
+> Note: testing showed that 4k seems to be the typical maximum for UDP based syslog. This is an IP stack restriction. Not always … but very often. If you go beyond that value, be sure to test that rsyslogd actually does what you think it should do ;) It is highly suggested to use a TCP based transport instead of UDP (plain TCP syslog, RELP). This resolves the UDP stack size restrictions.
+
+## TO 徐梓郡、高波
+
+问题1： 在 `/etc/rsyslog.conf`  配置中，将 `local6.*   /data/logs/haproxy.log` （大概在74行）移动到 `*.info;mail.none;authpriv.none;cron.none /var/log/messages`(大概在54行）之前，并且添加一个新配置行 `& ~`，避免 haproxy 的日志，在  `/data/logs/haproxy.log` 和  `/var/log/messages` 中重复记录，改完后的前后顺序效果如下：
+
+```conf
+local6.*                                                /data/logs/haproxy.log
+& ~
+
+# Log anything (except mail) of level info or higher.
+# Don't log private authentication messages!
+*.info;mail.none;authpriv.none;cron.none                /var/log/messages
+```
+
+问题2：配置日志切割
+
+```sh
+# 这个配置将会每天转储 /data/logs/haproxy.log 文件
+# /etc/logrotate.conf 配置文件有 include /etc/logrotate.d
+# 在/etc/logrotate.d下面写入一个配置文件
+cat << \EOF > /etc/logrotate.d/haproxy
+/data/logs/haproxy.log { # 处理的日志文件
+    missingok # 在日志轮循期间，任何错误将被忽略，例如 “文件无法找到” 之类的错误
+    daily # 每日
+    compress # 压缩
+    minsize 10M # 最小size
+    rotate 7 # 保留份数
+    notifempty # 如果是空文件的话，不转储
+    dateext # 转储文件加日期，效果：haproxy.log-20210320.gz
+}
+EOF
+```
+
+注：修改 logrotate 配置文件后，并不需要重启服务。(由于 logrotate 实际上只是一个可执行文件，不是以 daemon 运行)
